@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBS — Volume Allocation Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--navy:#0A2A8C;--navy2:#13379E;--red:#E8201A;--gold:#F5C518;--green:#2E7D32;--green-bg:#E8F2E1;--amber:#9A6B00;--amber-bg:#FCF1D6;--red-bg:#FCE9E8;--line:#E2E6EB;--bg:#F4F6F9;--card:#FFFFFF;--text:#1A2433;--muted:#6B7585;--blue-bg:#EAEEFB;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;padding:0 0 60px;}
+.topbar{background:var(--navy);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:4px solid var(--gold);box-shadow:inset 0 -7px 0 var(--gold), inset 0 -10px 0 var(--red);}
+.topbar h1{font-size:18px;font-weight:600;letter-spacing:.3px;}.topbar .sub{font-size:12px;color:#BCC8EE;margin-top:2px;}.topbar .stamp{font-size:12px;color:#BCC8EE;text-align:right;}
+.wrap{max-width:1280px;margin:0 auto;padding:0 16px;}.grid{display:grid;gap:16px;}section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:15px 18px;margin-top:14px;}.sec-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin-bottom:14px;display:flex;align-items:center;gap:7px;}.sec-title .bar{width:4px;height:14px;background:var(--gold);border-radius:2px;}.sec-hint{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0;text-transform:none;}
+.tabs{background:#fff;border-bottom:1px solid var(--line);display:flex;gap:4px;padding:0 16px;position:sticky;top:0;z-index:20;max-width:1280px;margin:0 auto;overflow-x:auto;}.tab{background:none;border:none;padding:14px 18px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;transition:.15s;font-family:inherit;white-space:nowrap;}.tab:hover{color:var(--navy);}.tab.active{color:var(--navy);border-bottom-color:var(--gold);}
+.input-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px 18px;}.igroup{border:1px solid var(--line);border-radius:9px;padding:10px 12px 12px;background:#FCFCFD;}.igroup-head{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:6px;}.igroup-head .dot{width:8px;height:8px;border-radius:50%;}.igroup.stock .igroup-head{color:var(--navy);}.igroup.stock .dot{background:var(--navy);}.igroup.cfg .igroup-head{color:#9A6B00;}.igroup.cfg .dot{background:var(--gold);}.igroup.empty .igroup-head{color:var(--navy);}.igroup.empty .dot{background:var(--navy2);}.igroup.laden .igroup-head{color:#B0140F;}.igroup.laden .dot{background:var(--red);}.igroup.rev .igroup-head{color:#2E7D32;}.igroup.rev .dot{background:#2E7D32;}
+.irow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;}.irow label{font-size:11.5px;color:var(--muted);font-weight:500;flex:1;}.irow input,.irow select{width:118px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;font-size:14px;font-weight:700;color:var(--text);background:#fff;text-align:right;transition:.15s;font-family:inherit;}.irow select{text-align:left;width:142px;}.irow input:focus,.irow select:focus{outline:none;border-color:var(--navy2);box-shadow:0 0 0 3px rgba(10,42,140,.1);}
+.hint{font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.45;font-style:normal;}.hint i{color:#9A6B00;font-style:normal;font-weight:700;}.hint code{font-size:10px;background:#F0F3FA;border:1px solid var(--line);border-radius:5px;padding:1px 4px;color:var(--navy);}
+.filebox{margin-top:10px;border:1px dashed #B7C2EA;border-radius:8px;padding:10px;background:#F7F9FE;}.filebox label{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px;}.filebox input[type=file]{width:100%;font-size:11.5px;color:var(--muted);}.file-status{font-size:10.5px;color:var(--muted);margin-top:7px;line-height:1.35;}.file-status.ok{color:var(--green);font-weight:600;}.file-status.err{color:var(--red);font-weight:600;}.file-status.warn{color:var(--amber);font-weight:600;}
+.opt-row{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;}.btn-opt{padding:11px 20px;border-radius:9px;border:none;cursor:pointer;background:linear-gradient(90deg,var(--navy),var(--navy2));color:#fff;font-size:14px;font-weight:700;letter-spacing:.2px;transition:.15s;box-shadow:0 2px 6px rgba(10,42,140,.25);white-space:nowrap;}.btn-opt:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(10,42,140,.3);}.btn-opt.red{background:linear-gradient(90deg,var(--red),#C2150F);}.btn-opt.gold{background:linear-gradient(90deg,#9A6B00,#C59100);}.btn-opt.green{background:linear-gradient(90deg,#2E7D32,#43A047);}.opt-status{font-size:12px;color:var(--muted);flex:1;min-width:200px;}.opt-status.err{color:var(--red);}.opt-status.ok{color:var(--green);}.opt-status.warn{color:var(--amber);}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}.btn{padding:9px 16px;border-radius:8px;border:1px solid var(--navy2);background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}.btn:hover{background:var(--navy2);}.btn.ghost{background:#fff;color:var(--navy);}.btn.ghost:hover{background:var(--bg);}.btn.gold{background:#9A6B00;border-color:#9A6B00;}.btn.red{background:var(--red);border-color:var(--red);}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;}.metric{background:var(--bg);border-radius:9px;padding:11px 13px;border:1px solid var(--line);}.metric .ml{font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500;}.metric .mv{font-size:21px;font-weight:700;line-height:1.05;}.metric .ms{font-size:10.5px;color:var(--muted);margin-top:3px;}.mv.red{color:var(--red);}.mv.amber{color:var(--amber);}.mv.green{color:var(--green);}.mv.navy{color:var(--navy);}
+.mini-alert{display:flex;align-items:flex-start;gap:9px;margin-top:12px;padding:10px 14px;border-radius:9px;font-size:13px;border:1px solid;line-height:1.45;}.mini-alert.warning{background:var(--amber-bg);border-color:#EAD08A;color:#6E4D00;}.mini-alert.ok{background:var(--green-bg);border-color:#B9D9A8;color:#1F5022;}.mini-alert.critical{background:var(--red-bg);border-color:#F4B6B3;color:#9A1410;}.mini-alert.info{background:var(--blue-bg);border-color:#CAD5F7;color:#12306E;}.mini-alert b{font-weight:700;}
+.chart-box{position:relative;height:300px;width:100%;}.chart-box.tall{height:390px;}.legend{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:var(--muted);margin-bottom:10px;}.legend span{display:flex;align-items:center;gap:6px;}.legend i{width:11px;height:11px;border-radius:3px;display:inline-block;}
+.table-scroll{overflow-x:auto;}table{width:100%;border-collapse:collapse;font-size:12px;min-width:860px;}thead th{background:var(--navy2);color:#fff;font-weight:600;padding:9px 8px;text-align:center;font-size:10.5px;letter-spacing:.02em;border:1px solid var(--navy);white-space:nowrap;}thead th:first-child{text-align:left;}tbody td{padding:7px 8px;text-align:center;border:1px solid var(--line);white-space:nowrap;}tbody td:first-child{text-align:left;font-weight:700;color:var(--navy);}tbody tr:nth-child(even){background:#FAFBFD;}tbody tr.total{background:#EAEEFB;font-weight:800;}tbody tr.good td:last-child{background:var(--green-bg);color:var(--green);font-weight:800;}tbody tr.warn td:last-child{background:var(--amber-bg);color:var(--amber);font-weight:800;}tbody tr.bad td:last-child{background:var(--red-bg);color:var(--red);font-weight:800;}
+.chip{display:inline-block;padding:2px 8px;border-radius:6px;font-weight:700;font-size:11px;}.chip.red{background:var(--red-bg);color:var(--red);}.chip.amber{background:var(--amber-bg);color:var(--amber);}.chip.green{background:var(--green-bg);color:var(--green);}.chip.navy{background:#E8ECFA;color:var(--navy);}.dash-note{font-size:12.5px;color:var(--text);background:var(--bg);border-radius:8px;padding:11px 14px;margin-top:12px;line-height:1.5;}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;}.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}.depot-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:14px;background:#fff;}.depot-title{display:flex;align-items:center;justify-content:space-between;background:#F7F9FE;border-bottom:1px solid var(--line);padding:10px 14px;}.depot-title b{color:var(--navy);}.depot-title span{font-size:11px;color:var(--muted);}.pct-good{color:var(--green);font-weight:800;}.pct-mid{color:var(--amber);font-weight:800;}.pct-low{color:var(--red);font-weight:800;}.sheet-link{width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 9px;font-size:12px;color:var(--text);}.blank{padding:24px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--line);border-radius:9px;background:#FCFCFD;}
+@media(max-width:960px){.two-col,.three-col{grid-template-columns:1fr;}.topbar{flex-direction:column;gap:8px;align-items:flex-start;}.topbar .stamp{text-align:left;}.tabs{padding:0 8px}.tab{padding:12px 10px;font-size:12px;}}
+@media print{.tabs,.toolbar,.filebox,.opt-row,.no-print{display:none!important;}body{background:#fff;}section{break-inside:avoid;box-shadow:none;}canvas{max-height:260px!important;}.topbar{box-shadow:none;}}
+</style>
+</head>
+<body>
+<div class="topbar"><div><h1>SBS — Volume Allocation Dashboard</h1><div class="sub">Seacon Bintang Sejahtera · Rock Data · Daily / MTD / Monthly / Weekly / YTD Allocation</div></div><div class="stamp" id="stamp"></div></div>
+<nav class="tabs">
+  <button class="tab active" data-page="input" onclick="switchPage('input')">⚙️ Data & Parameters</button>
+  <button class="tab" data-page="daily" onclick="switchPage('daily')">📅 RES-Daily</button>
+  <button class="tab" data-page="month" onclick="switchPage('month')">🗓️ RES-Month</button>
+  <button class="tab" data-page="week" onclick="switchPage('week')">📆 RES-Week</button>
+  <button class="tab" data-page="ytd" onclick="switchPage('ytd')">📌 YTD</button>
+  <button class="tab" data-page="chart" onclick="switchPage('chart')">📊 Graph</button>
+  <button class="tab" data-page="record" onclick="switchPage('record')">💾 Record</button>
+</nav>
+<div class="wrap">
+
+<div id="page-input">
+<section>
+<div class="sec-title"><span class="bar"></span>Allocation setup <span class="sec-hint">— upload Rock file and define reporting period</span></div>
+<div class="input-groups">
+  <div class="igroup stock"><div class="igroup-head"><span class="dot"></span>Rock data source</div>
+    <div class="filebox"><label for="uploadRock">Upload Rock Data (.xlsx / .xls / .csv)</label><input type="file" id="uploadRock" accept=".xlsx,.xls,.csv"><div class="file-status" id="statusRock">No Rock data uploaded yet. Upload the file with columns Date, Geo level name, Import, Export.</div></div>
+    <div class="hint">The parser will find the header row automatically. Required value unit: <i>TEU / Teus</i>.</div>
+  </div>
+  <div class="igroup cfg"><div class="igroup-head"><span class="dot"></span>Period control</div>
+    <div class="irow"><label>Upload date</label><input type="date" id="uploadDate"></div>
+    <div class="irow"><label>Cut-off rule</label><input type="text" id="cutoffText" value="H-1" readonly></div>
+    <div class="irow"><label>Year</label><input type="number" id="yearInput" value="2026" min="2020" max="2035"></div>
+    <div class="irow"><label>Period month</label><select id="monthInput"></select></div>
+    <div class="hint">Example: if upload date is <i>06 Jul 2026</i>, the displayed data will run until <i>05 Jul 2026</i>.</div>
+  </div>
+  <div class="igroup empty"><div class="igroup-head"><span class="dot"></span>Depot comparison</div>
+    <div class="hint"><b>Jakarta</b>: IDJKTSS vs IDJKTIT<br><b>Surabaya</b>: IDSUBSS vs IDSUBP1<br><b>Semarang</b>: IDSEMSS vs IDSEMAS<br><br>All allocation percentages use the SBS depot as numerator.</div>
+  </div>
+  <div class="igroup laden"><div class="igroup-head"><span class="dot"></span>Formula basis</div>
+    <div class="hint"><b>IM%</b> = Depot Import / (Depot Import + Comparator Import)<br><b>EX%</b> = Depot Export / (Depot Export + Comparator Export)<br><b>Total Allocation%</b> = (Depot IM + Depot EX) / total IM+EX of both locations.</div>
+  </div>
+</div>
+<div class="opt-row">
+  <button class="btn-opt" onclick="runAllocation()">📈 Generate Allocation</button>
+  <button class="btn-opt gold" onclick="setPeriodToCutoffMonth()">🗓️ Use Cut-off Month</button>
+  <button class="btn-opt green" onclick="saveCurrentRecord()">💾 Save Record</button>
+  <button class="btn-opt green" onclick="syncToSpreadsheet()">☁ Replace Spreadsheet</button>
+  <button class="btn-opt red" onclick="downloadExcel()">⬇ Download Excel</button>
+  <span class="opt-status" id="mainStatus">Ready. Upload Rock data to generate allocation.</span>
+</div>
+</section>
+<section>
+  <div class="sec-title"><span class="bar"></span>Live snapshot</div>
+  <div class="metrics" id="metrics"></div>
+  <div class="mini-alert info" id="priorityNote"><span>ℹ️</span><span>This static dashboard processes data locally in your browser. Source data is not embedded into this HTML file.</span></div>
+</section>
+<section>
+  <div class="sec-title"><span class="bar"></span>Calculation basis</div>
+  <div class="two-col">
+    <div class="dash-note"><b>Daily / MTD</b><br>Daily allocation uses the selected month and stops at the H-1 cut-off. MTD uses cumulative import/export from the first day of that month until each displayed date.</div>
+    <div class="dash-note"><b>Monthly / Weekly / YTD</b><br>Monthly summarizes by calendar month. Weekly summarizes by ISO week. YTD uses cumulative data from 01 January until the selected H-1 cut-off date.</div>
+  </div>
+</section>
+</div>
+
+<div id="page-daily" hidden>
+<section>
+  <div class="sec-title"><span class="bar"></span><span id="dailyTitle">RES-Daily Allocation</span> <span class="sec-hint">— daily, MTD IM%, MTD EX%, and total allocation</span></div>
+  <div id="dailyTables"></div>
+  <div class="toolbar"><button class="btn" onclick="downloadExcel()">⬇ Download Excel</button><button class="btn ghost" onclick="window.print()">🖨 Print / PDF</button></div>
+</section>
+</div>
+
+<div id="page-month" hidden>
+<section>
+  <div class="sec-title"><span class="bar"></span><span id="monthTitle">RES-Month Allocation</span> <span class="sec-hint">— calendar month summary</span></div>
+  <div id="monthTables"></div>
+  <div class="toolbar"><button class="btn" onclick="downloadExcel()">⬇ Download Excel</button><button class="btn ghost" onclick="window.print()">🖨 Print / PDF</button></div>
+</section>
+</div>
+
+<div id="page-week" hidden>
+<section>
+  <div class="sec-title"><span class="bar"></span><span id="weekTitle">RES-Week Allocation</span> <span class="sec-hint">— weekly summary with YTW cumulative %</span></div>
+  <div id="weekTables"></div>
+  <div class="toolbar"><button class="btn" onclick="downloadExcel()">⬇ Download Excel</button><button class="btn ghost" onclick="window.print()">🖨 Print / PDF</button></div>
+</section>
+</div>
+
+<div id="page-ytd" hidden>
+<section>
+  <div class="sec-title"><span class="bar"></span><span id="ytdTitle">Year To Date Allocation</span> <span class="sec-hint">— cumulative allocation from 01 Jan to cut-off</span></div>
+  <div class="metrics" id="ytdMetrics"></div>
+  <div id="ytdTables"></div>
+  <div class="toolbar"><button class="btn" onclick="downloadExcel()">⬇ Download Excel</button><button class="btn ghost" onclick="window.print()">🖨 Print / PDF</button></div>
+</section>
+</div>
+
+<div id="page-chart" hidden>
+<section>
+  <div class="sec-title"><span class="bar"></span>Allocation graph <span class="sec-hint">— by depot and total SBS allocation</span></div>
+  <div class="legend"><span><i style="background:var(--navy2);"></i>IM%</span><span><i style="background:var(--red);"></i>EX%</span><span><i style="background:var(--gold);"></i>Total Allocation%</span></div>
+  <div class="input-groups no-print" style="margin-bottom:12px;">
+    <div class="igroup cfg"><div class="igroup-head"><span class="dot"></span>Chart period</div>
+      <div class="irow"><label>Period</label><select id="chartMode" onchange="renderCharts()"><option value="month" selected>Monthly</option><option value="week">Weekly</option><option value="daily">Daily selected month</option></select></div>
+    </div>
+  </div>
+  <div class="three-col">
+    <div class="depot-card"><div class="depot-title"><b>Jakarta</b><span>IDJKTSS vs IDJKTIT</span></div><div class="chart-box"><canvas id="chartJKT"></canvas></div></div>
+    <div class="depot-card"><div class="depot-title"><b>Surabaya</b><span>IDSUBSS vs IDSUBP1</span></div><div class="chart-box"><canvas id="chartSUB"></canvas></div></div>
+    <div class="depot-card"><div class="depot-title"><b>Semarang</b><span>IDSEMSS vs IDSEMAS</span></div><div class="chart-box"><canvas id="chartSEM"></canvas></div></div>
+  </div>
+</section>
+<section>
+  <div class="sec-title"><span class="bar"></span>Total SBS depot allocation <span class="sec-hint">— IDJKTSS + IDSUBSS + IDSEMSS compared to paired locations</span></div>
+  <div class="chart-box tall"><canvas id="chartTotal"></canvas></div>
+</section>
+</div>
+
+<div id="page-record" hidden>
+<section>
+  <div class="sec-title"><span class="bar"></span>Record & spreadsheet helper <span class="sec-hint">— local record and optional Google Sheets workflow</span></div>
+  <div class="input-groups">
+    <div class="igroup rev"><div class="igroup-head"><span class="dot"></span>Local browser record</div>
+      <div class="hint">Click <b>Save Record</b> after Generate Allocation. Records are stored in this browser only and can be exported to Excel.</div>
+      <div class="toolbar"><button class="btn green" onclick="saveCurrentRecord()">💾 Save Record</button><button class="btn" onclick="exportRecords()">⬇ Export Records</button><button class="btn ghost" onclick="clearRecords()">Clear</button></div>
+    </div>
+    <div class="igroup stock"><div class="igroup-head"><span class="dot"></span>Google Sheets link</div>
+      <input class="sheet-link" id="sheetLink" value="https://docs.google.com/spreadsheets/d/1WAu1KhMNJSSsXPjTdnwiBPXDc-Qc5RAlrJWjlgsfx2A/edit?usp=sharing">
+      <label class="hint" style="display:block;margin-top:8px;"><b>Apps Script Web App URL</b> — paste URL yang berakhiran <b>/exec</b> untuk mode GitHub Pages.</label>
+      <input class="sheet-link" id="appsScriptUrl" placeholder="https://script.google.com/macros/s/AKfycbzP0Gjxfoe9Ioga4DTV6Yxb4g9LLnyee3RMP6VoJJleKA98adlRvRi2swN9S_nmzOqpeQ/exec">
+      <div class="toolbar"><button class="btn" onclick="openSheet()">Open Spreadsheet</button><button class="btn ghost" onclick="copyLatestCsv()">Copy latest CSV</button></div>
+      <div class="toolbar"><button class="btn green" onclick="syncToSpreadsheet()">☁ Replace Spreadsheet Data</button><button class="btn ghost" onclick="checkSpreadsheet()">Check Connection</button></div>
+      <label class="hint" style="display:flex;align-items:center;gap:7px;margin-top:10px;"><input type="checkbox" id="autoSyncToggle" checked> Auto replace spreadsheet after Rock file upload</label>
+      <div class="file-status" id="syncStatus">GitHub Pages mode: paste Apps Script /exec URL, then click Check Connection.</div>
+      <div class="hint">Online mode will <b>clear the previous spreadsheet data</b> and replace it with the latest Rock upload results: ROCK_FILTERED, UPLOAD_INFO, RES_DAILY, RES_MONTH, RES_WEEK, and YTD.</div>
+    </div>
+  </div>
+</section>
+<section>
+  <div class="sec-title"><span class="bar"></span>Saved records</div>
+  <div id="recordTable"></div>
+</section>
+</div>
+
+</div>
+<script>
+// Paste your Apps Script Web App URL here if you want it pre-filled.
+// Example: const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxxxxxxx/exec';
+const APPS_SCRIPT_WEB_APP_URL = '';
+
+const DEPOTS = [
+  {key:'JKT', label:'Jakarta', depot:'IDJKTSS', compare:'IDJKTIT'},
+  {key:'SUB', label:'Surabaya', depot:'IDSUBSS', compare:'IDSUBP1'},
+  {key:'SEM', label:'Semarang', depot:'IDSEMSS', compare:'IDSEMAS'}
+];
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let state = {
+  rawRows: [], dailyAgg: {}, valueUnit: '', fileName: '',
+  results: {daily:{}, month:{}, week:{}, ytd:{}, totals:{}},
+  generated: false,
+  records: []
+};
+let charts = {};
+
+function pad(n){return String(n).padStart(2,'0');}
+function dateKey(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function niceDate(d){if(!d) return '-'; return `${pad(d.getDate())} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;}
+function parseDate(v){
+  if(v instanceof Date && !isNaN(v)) return new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  if(typeof v === 'number'){
+    const parsed = XLSX.SSF.parse_date_code(v);
+    if(parsed) return new Date(parsed.y, parsed.m-1, parsed.d);
+  }
+  if(typeof v === 'string'){
+    const s = v.trim();
+    if(!s || s.toLowerCase()==='date') return null;
+    let m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+    m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+    const d = new Date(s);
+    if(!isNaN(d)) return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  return null;
+}
+function addDays(d, days){const x = new Date(d); x.setDate(x.getDate()+days); return x;}
+function daysInMonth(year, month){return new Date(year, month, 0).getDate();}
+function monthStart(year, month){return new Date(year, month-1, 1);}
+function monthEnd(year, month){return new Date(year, month-1, daysInMonth(year, month));}
+function compareDates(a,b){return new Date(a.getFullYear(),a.getMonth(),a.getDate()) - new Date(b.getFullYear(),b.getMonth(),b.getDate());}
+function getUploadDate(){return parseDate(document.getElementById('uploadDate').value) || new Date();}
+function getCutoffDate(){return addDays(getUploadDate(), -1);}
+function num(v){if(v===null || v===undefined || v==='') return 0; if(typeof v==='number') return isFinite(v)?v:0; const n = Number(String(v).replace(/,/g,'')); return isFinite(n)?n:0;}
+function safePct(n,d){return d ? n/d : 0;}
+function fmt(n){return Math.round(num(n)).toLocaleString('en-US');}
+function pct(v){return isFinite(v) ? (v*100).toFixed(1)+'%' : '0.0%';}
+function pctClass(v){if(v>=0.80) return 'pct-good'; if(v>=0.70) return 'pct-mid'; return 'pct-low';}
+function norm(s){return String(s||'').trim().toLowerCase();}
+function cleanHeader(h){return String(h||'').trim();}
+function isoWeek(d){
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1)/7);
+}
+function showStatus(msg, cls=''){const el=document.getElementById('mainStatus'); el.textContent=msg; el.className='opt-status '+cls;}
+
+function init(){
+  document.getElementById('stamp').textContent = 'Generated view · '+new Date().toLocaleString('en-GB');
+  const today = new Date();
+  document.getElementById('uploadDate').value = dateKey(today);
+  document.getElementById('yearInput').value = today.getFullYear();
+  const monthSel = document.getElementById('monthInput');
+  monthSel.innerHTML = MONTH_NAMES.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  monthSel.value = today.getMonth()+1;
+  document.getElementById('uploadDate').addEventListener('change', ()=>{setPeriodToCutoffMonth(false); updateCutoffText();});
+  document.getElementById('yearInput').addEventListener('change', ()=>{if(state.rawRows.length) runAllocation();});
+  document.getElementById('monthInput').addEventListener('change', ()=>{if(state.rawRows.length) runAllocation();});
+  document.getElementById('uploadRock').addEventListener('change', handleRockUpload);
+  const savedApiUrl = localStorage.getItem('sbsAllocationAppsScriptUrl') || (typeof APPS_SCRIPT_WEB_APP_URL !== 'undefined' ? APPS_SCRIPT_WEB_APP_URL : '') || '';
+  const apiInput = document.getElementById('appsScriptUrl');
+  if(apiInput){
+    apiInput.value = savedApiUrl;
+    apiInput.addEventListener('change', ()=>localStorage.setItem('sbsAllocationAppsScriptUrl', apiInput.value.trim()));
+  }
+  updateCutoffText(); loadRecords(); renderEmpty();
+}
+function updateCutoffText(){document.getElementById('cutoffText').value = niceDate(getCutoffDate());}
+function setPeriodToCutoffMonth(run=true){
+  const c = getCutoffDate();
+  document.getElementById('yearInput').value = c.getFullYear();
+  document.getElementById('monthInput').value = c.getMonth()+1;
+  updateCutoffText();
+  if(run && state.rawRows.length) runAllocation();
+}
+function renderEmpty(){
+  document.getElementById('metrics').innerHTML = '<div class="metric"><div class="ml">Status</div><div class="mv navy">Ready</div><div class="ms">Upload Rock data first</div></div>';
+  ['dailyTables','monthTables','weekTables','ytdTables','recordTable'].forEach(id=>{if(document.getElementById(id)) document.getElementById(id).innerHTML='<div class="blank">No allocation generated yet.</div>';});
+  document.getElementById('ytdMetrics').innerHTML = '';
+}
+function switchPage(page){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.page===page));
+  ['input','daily','month','week','ytd','chart','record'].forEach(p=>{document.getElementById('page-'+p).hidden = p!==page;});
+  if(page==='chart') renderCharts();
+  if(page==='record') renderRecords();
+}
+
+async function handleRockUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  state.fileName = file.name;
+  const status = document.getElementById('statusRock');
+  status.textContent = 'Reading '+file.name+' ...'; status.className = 'file-status';
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array', cellDates:true});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+    state.valueUnit = detectValueUnit(rows);
+    const parsed = parseRockRows(rows);
+    state.rawRows = parsed;
+    status.textContent = `Loaded ${parsed.length.toLocaleString('en-US')} rows from ${file.name}. Values: ${state.valueUnit || 'not detected'}.`;
+    status.className = (String(state.valueUnit).toUpperCase().includes('TEU')) ? 'file-status ok' : 'file-status warn';
+    showStatus('Rock data loaded. Generating allocation ...','ok');
+    runAllocation();
+    maybeAutoSync('upload');
+  }catch(err){
+    console.error(err);
+    status.textContent = 'Failed to read file: '+err.message;
+    status.className = 'file-status err';
+    showStatus('Failed to read Rock file. Check the format.','err');
+  }
+}
+function detectValueUnit(rows){
+  for(let i=0;i<Math.min(8, rows.length);i++){
+    const r = rows[i] || [];
+    for(let j=0;j<r.length;j++){
+      if(norm(r[j]).includes('values')){
+        const next = r[j+1] || r[j+2] || '';
+        return String(next).trim();
+      }
+    }
+  }
+  return '';
+}
+function parseRockRows(rows){
+  const headerIdx = rows.findIndex(r=>{
+    const h = (r||[]).map(norm);
+    return h.includes('date') && h.includes('geo level name') && h.includes('import') && h.includes('export');
+  });
+  if(headerIdx<0) throw new Error('Header row not found. Required: Date, Geo level name, Import, Export.');
+  const headers = rows[headerIdx].map(cleanHeader);
+  const idx = {}; headers.forEach((h,i)=>idx[h]=i);
+  const geos = new Set(DEPOTS.flatMap(d=>[d.depot,d.compare]));
+  const out=[];
+  for(let r=headerIdx+1;r<rows.length;r++){
+    const row=rows[r]; if(!row || row.length===0) continue;
+    const d = parseDate(row[idx['Date']]);
+    const geo = String(row[idx['Geo level name']]||'').trim().toUpperCase();
+    if(!d || !geos.has(geo)) continue;
+    out.push({
+      date: d,
+      key: dateKey(d),
+      year: d.getFullYear(),
+      month: d.getMonth()+1,
+      day: d.getDate(),
+      week: isoWeek(d),
+      geo,
+      equipment: String(row[idx['Equipment type']]||''),
+      im: num(row[idx['Import']]),
+      ex: num(row[idx['Export']])
+    });
+  }
+  return out;
+}
+
+function buildDailyAgg(cutoff){
+  const agg = {};
+  state.rawRows.forEach(r=>{
+    if(compareDates(r.date, cutoff)>0) return;
+    const k=r.key;
+    if(!agg[k]) agg[k] = {};
+    if(!agg[k][r.geo]) agg[k][r.geo] = {im:0, ex:0};
+    agg[k][r.geo].im += r.im;
+    agg[k][r.geo].ex += r.ex;
+  });
+  state.dailyAgg = agg;
+}
+function getGeo(dateStr, geo){return (state.dailyAgg[dateStr] && state.dailyAgg[dateStr][geo]) ? state.dailyAgg[dateStr][geo] : {im:0, ex:0};}
+function calcRow(dateStr, depotConf, cum){
+  const a = getGeo(dateStr, depotConf.depot);
+  const b = getGeo(dateStr, depotConf.compare);
+  const imPct = safePct(a.im, a.im + b.im);
+  const exPct = safePct(a.ex, a.ex + b.ex);
+  const totalPct = safePct(a.im + a.ex, a.im + a.ex + b.im + b.ex);
+  if(cum){cum.aIm += a.im; cum.bIm += b.im; cum.aEx += a.ex; cum.bEx += b.ex;}
+  const mtdImPct = cum ? safePct(cum.aIm, cum.aIm + cum.bIm) : imPct;
+  const mtdExPct = cum ? safePct(cum.aEx, cum.aEx + cum.bEx) : exPct;
+  return {date:dateStr, depot:depotConf.label, depotCode:depotConf.depot, compareCode:depotConf.compare, imCompare:b.im, imDepot:a.im, exCompare:b.ex, exDepot:a.ex, imPct, exPct, mtdImPct, mtdExPct, totalPct};
+}
+function sumRows(rows){
+  return rows.reduce((a,r)=>({imCompare:a.imCompare+r.imCompare, imDepot:a.imDepot+r.imDepot, exCompare:a.exCompare+r.exCompare, exDepot:a.exDepot+r.exDepot}),{imCompare:0,imDepot:0,exCompare:0,exDepot:0});
+}
+function calcPctFromSum(s){return {imPct:safePct(s.imDepot, s.imDepot+s.imCompare), exPct:safePct(s.exDepot, s.exDepot+s.exCompare), totalPct:safePct(s.imDepot+s.exDepot, s.imDepot+s.exDepot+s.imCompare+s.exCompare)};}
+
+function runAllocation(){
+  updateCutoffText();
+  if(!state.rawRows.length){showStatus('Please upload Rock data first.','err'); return;}
+  const year = +document.getElementById('yearInput').value;
+  const month = +document.getElementById('monthInput').value;
+  const cutoff = getCutoffDate();
+  buildDailyAgg(cutoff);
+  buildResults(year, month, cutoff);
+  renderAll(year, month, cutoff);
+  state.generated = true;
+  showStatus(`Allocation generated from ${state.fileName || 'Rock data'} until ${niceDate(cutoff)}.`, 'ok');
+}
+function buildResults(year, month, cutoff){
+  state.results = {daily:{}, month:{}, week:{}, ytd:{}, totals:{}};
+  DEPOTS.forEach(conf=>{
+    state.results.daily[conf.key] = buildDailyRows(conf, year, month, cutoff);
+    state.results.month[conf.key] = buildMonthRows(conf, year, cutoff);
+    state.results.week[conf.key] = buildWeekRows(conf, year, cutoff);
+    state.results.ytd[conf.key] = buildYtdRows(conf, year, cutoff);
+  });
+  state.results.totals = buildTotalSbs(year, month, cutoff);
+}
+function buildDailyRows(conf, year, month, cutoff){
+  const rows=[]; const start = monthStart(year, month); const end = monthEnd(year, month);
+  const finalEnd = compareDates(end, cutoff)>0 ? cutoff : end;
+  if(compareDates(start, finalEnd)>0) return rows;
+  const cum={aIm:0,bIm:0,aEx:0,bEx:0};
+  for(let d=new Date(start); compareDates(d,finalEnd)<=0; d=addDays(d,1)) rows.push(calcRow(dateKey(d), conf, cum));
+  return rows;
+}
+function buildMonthRows(conf, year, cutoff){
+  const rows=[];
+  for(let m=1;m<=12;m++){
+    const end = monthEnd(year,m); const start=monthStart(year,m); const finalEnd = compareDates(end, cutoff)>0 ? cutoff : end;
+    const daily=[];
+    if(compareDates(start, finalEnd)<=0){ for(let d=new Date(start); compareDates(d,finalEnd)<=0; d=addDays(d,1)) daily.push(calcRow(dateKey(d),conf,null)); }
+    const s=sumRows(daily); const p=calcPctFromSum(s);
+    rows.push({month:m, monthName:MONTH_NAMES[m-1]+'-'+year, ...s, throughputIm:s.imDepot+s.imCompare, throughputEx:s.exDepot+s.exCompare, allocationDepot:s.imDepot+s.exDepot, allocationAll:s.imDepot+s.exDepot+s.imCompare+s.exCompare, ...p});
+  }
+  return rows;
+}
+function buildWeekRows(conf, year, cutoff){
+  const byWeek={};
+  Object.keys(state.dailyAgg).forEach(k=>{
+    const d=parseDate(k); if(!d || d.getFullYear()!==year || compareDates(d,cutoff)>0) return;
+    const w=isoWeek(d); if(!byWeek[w]) byWeek[w]=[]; byWeek[w].push(calcRow(k, conf, null));
+  });
+  const maxWeek = (year < cutoff.getFullYear()) ? 53 : isoWeek(cutoff);
+  const rows=[]; const cum={imCompare:0,imDepot:0,exCompare:0,exDepot:0};
+  for(let w=1; w<=maxWeek; w++){
+    const s=sumRows(byWeek[w]||[]); cum.imCompare+=s.imCompare; cum.imDepot+=s.imDepot; cum.exCompare+=s.exCompare; cum.exDepot+=s.exDepot;
+    const p=calcPctFromSum(s); const cp=calcPctFromSum(cum);
+    rows.push({week:w, ...s, imPct:p.imPct, exPct:p.exPct, ytwImPct:cp.imPct, ytwExPct:cp.exPct, totalPct:p.totalPct});
+  }
+  return rows;
+}
+function buildYtdRows(conf, year, cutoff){
+  const rows=[]; const start=new Date(year,0,1); const finalEnd = (year < cutoff.getFullYear()) ? new Date(year,11,31) : cutoff;
+  if(compareDates(start, finalEnd)>0) return rows;
+  const cum={aIm:0,bIm:0,aEx:0,bEx:0};
+  for(let d=new Date(start); compareDates(d,finalEnd)<=0; d=addDays(d,1)){
+    const r=calcRow(dateKey(d),conf,cum);
+    rows.push({...r, ytdImPct:r.mtdImPct, ytdExPct:r.mtdExPct});
+  }
+  return rows;
+}
+function buildTotalSbs(year, month, cutoff){
+  const totalByRows = rows => {
+    let s={imCompare:0,imDepot:0,exCompare:0,exDepot:0};
+    rows.forEach(k=>DEPOTS.forEach(conf=>{
+      const a=getGeo(k,conf.depot), b=getGeo(k,conf.compare);
+      s.imDepot+=a.im; s.exDepot+=a.ex; s.imCompare+=b.im; s.exCompare+=b.ex;
+    }));
+    return {...s, ...calcPctFromSum(s)};
+  };
+  const keysSelectedMonth=[]; const start=monthStart(year,month); const end=monthEnd(year,month); const finalEnd=compareDates(end,cutoff)>0?cutoff:end;
+  if(compareDates(start,finalEnd)<=0){for(let d=new Date(start); compareDates(d,finalEnd)<=0; d=addDays(d,1)) keysSelectedMonth.push(dateKey(d));}
+  const keysYtd=[]; const ystart=new Date(year,0,1); const yend=(year<cutoff.getFullYear())?new Date(year,11,31):cutoff;
+  if(compareDates(ystart,yend)<=0){for(let d=new Date(ystart); compareDates(d,yend)<=0; d=addDays(d,1)) keysYtd.push(dateKey(d));}
+  return {selectedMonth:totalByRows(keysSelectedMonth), ytd:totalByRows(keysYtd)};
+}
+
+function renderAll(year, month, cutoff){
+  renderMetrics(year,month,cutoff); renderDaily(year,month,cutoff); renderMonth(year,cutoff); renderWeek(year,cutoff); renderYtd(year,cutoff); renderRecords(); renderCharts();
+}
+function renderMetrics(year,month,cutoff){
+  const total = state.results.totals.ytd;
+  const current = state.results.totals.selectedMonth;
+  const rows = [
+    ['File', state.fileName || '-', state.valueUnit ? 'Values: '+state.valueUnit : 'Unit not detected', 'navy'],
+    ['Cut-off date', niceDate(cutoff), 'H-1 from upload date', 'navy'],
+    ['MTD Total Allocation', pct(current.totalPct), `Selected month: ${MONTH_NAMES[month-1]} ${year}`, current.totalPct>=.8?'green':current.totalPct>=.7?'amber':'red'],
+    ['YTD Total Allocation', pct(total.totalPct), 'IDJKTSS + IDSUBSS + IDSEMSS', total.totalPct>=.8?'green':total.totalPct>=.7?'amber':'red'],
+    ['YTD IM%', pct(total.imPct), `Depot IM ${fmt(total.imDepot)} TEUs`, total.imPct>=.8?'green':total.imPct>=.7?'amber':'red'],
+    ['YTD EX%', pct(total.exPct), `Depot EX ${fmt(total.exDepot)} TEUs`, total.exPct>=.8?'green':total.exPct>=.7?'amber':'red']
+  ];
+  document.getElementById('metrics').innerHTML = rows.map(r=>`<div class="metric"><div class="ml">${r[0]}</div><div class="mv ${r[3]}">${r[1]}</div><div class="ms">${r[2]}</div></div>`).join('');
+}
+function renderDaily(year,month,cutoff){
+  document.getElementById('dailyTitle').textContent = `RES-Daily Allocation · ${MONTH_NAMES[month-1]} ${year} · Cut-off ${niceDate(cutoff)}`;
+  const html = DEPOTS.map(conf=>renderDailyTable(conf, state.results.daily[conf.key], 'MTD')).join('');
+  document.getElementById('dailyTables').innerHTML = html || '<div class="blank">No daily data for selected period.</div>';
+}
+function renderDailyTable(conf, rows, cumLabel){
+  return `<div class="depot-card"><div class="depot-title"><b>${conf.label}</b><span>${conf.depot} vs ${conf.compare}</span></div><div class="table-scroll"><table><thead><tr><th>Date</th><th>IM(${conf.compare})</th><th>IM(${conf.depot})</th><th>EX(${conf.compare})</th><th>EX(${conf.depot})</th><th>IM%</th><th>EX%</th><th>${cumLabel} IM%</th><th>${cumLabel} EX%</th><th>Total Allocation%</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.date}</td><td>${fmt(r.imCompare)}</td><td>${fmt(r.imDepot)}</td><td>${fmt(r.exCompare)}</td><td>${fmt(r.exDepot)}</td><td class="${pctClass(r.imPct)}">${pct(r.imPct)}</td><td class="${pctClass(r.exPct)}">${pct(r.exPct)}</td><td class="${pctClass(r.mtdImPct)}">${pct(r.mtdImPct)}</td><td class="${pctClass(r.mtdExPct)}">${pct(r.mtdExPct)}</td><td class="${pctClass(r.totalPct)}">${pct(r.totalPct)}</td></tr>`).join('')}${renderDailyTotalRow(rows,conf)}</tbody></table></div></div>`;
+}
+function renderDailyTotalRow(rows,conf){
+  const s=sumRows(rows); const p=calcPctFromSum(s);
+  return `<tr class="total"><td>Total</td><td>${fmt(s.imCompare)}</td><td>${fmt(s.imDepot)}</td><td>${fmt(s.exCompare)}</td><td>${fmt(s.exDepot)}</td><td class="${pctClass(p.imPct)}">${pct(p.imPct)}</td><td class="${pctClass(p.exPct)}">${pct(p.exPct)}</td><td class="${pctClass(p.imPct)}">${pct(p.imPct)}</td><td class="${pctClass(p.exPct)}">${pct(p.exPct)}</td><td class="${pctClass(p.totalPct)}">${pct(p.totalPct)}</td></tr>`;
+}
+function renderMonth(year,cutoff){
+  document.getElementById('monthTitle').textContent = `RES-Month Allocation · ${year} · Cut-off ${niceDate(cutoff)}`;
+  document.getElementById('monthTables').innerHTML = DEPOTS.map(conf=>{
+    const rows=state.results.month[conf.key];
+    return `<div class="depot-card"><div class="depot-title"><b>${conf.label}</b><span>${conf.depot} vs ${conf.compare}</span></div><div class="table-scroll"><table><thead><tr><th>Month</th><th>Import ${conf.depot}</th><th>Import ${conf.compare}</th><th>Export ${conf.depot}</th><th>Export ${conf.compare}</th><th>Throughput Import</th><th>Throughput Export</th><th>IM%</th><th>EX%</th><th>Allocation ${conf.depot}</th><th>All Allocation</th><th>Total Allocation%</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.monthName}</td><td>${fmt(r.imDepot)}</td><td>${fmt(r.imCompare)}</td><td>${fmt(r.exDepot)}</td><td>${fmt(r.exCompare)}</td><td>${fmt(r.throughputIm)}</td><td>${fmt(r.throughputEx)}</td><td class="${pctClass(r.imPct)}">${pct(r.imPct)}</td><td class="${pctClass(r.exPct)}">${pct(r.exPct)}</td><td>${fmt(r.allocationDepot)}</td><td>${fmt(r.allocationAll)}</td><td class="${pctClass(r.totalPct)}">${pct(r.totalPct)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }).join('');
+}
+function renderWeek(year,cutoff){
+  document.getElementById('weekTitle').textContent = `RES-Week Allocation · ${year} · Cut-off ${niceDate(cutoff)}`;
+  document.getElementById('weekTables').innerHTML = DEPOTS.map(conf=>{
+    const rows=state.results.week[conf.key];
+    return `<div class="depot-card"><div class="depot-title"><b>${conf.label}</b><span>${conf.depot} vs ${conf.compare}</span></div><div class="table-scroll"><table><thead><tr><th>Week</th><th>IM(${conf.compare})</th><th>IM(${conf.depot})</th><th>EX(${conf.compare})</th><th>EX(${conf.depot})</th><th>IM%</th><th>EX%</th><th>YTW IM%</th><th>YTW EX%</th><th>Total Allocation%</th></tr></thead><tbody>${rows.map(r=>`<tr><td>Week ${r.week}</td><td>${fmt(r.imCompare)}</td><td>${fmt(r.imDepot)}</td><td>${fmt(r.exCompare)}</td><td>${fmt(r.exDepot)}</td><td class="${pctClass(r.imPct)}">${pct(r.imPct)}</td><td class="${pctClass(r.exPct)}">${pct(r.exPct)}</td><td class="${pctClass(r.ytwImPct)}">${pct(r.ytwImPct)}</td><td class="${pctClass(r.ytwExPct)}">${pct(r.ytwExPct)}</td><td class="${pctClass(r.totalPct)}">${pct(r.totalPct)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  }).join('');
+}
+function renderYtd(year,cutoff){
+  document.getElementById('ytdTitle').textContent = `Year To Date Allocation · ${year} · Cut-off ${niceDate(cutoff)}`;
+  const metricRows = DEPOTS.map(conf=>{
+    const rows=state.results.ytd[conf.key]; const s=sumRows(rows); const p=calcPctFromSum(s);
+    return `<div class="metric"><div class="ml">${conf.label} YTD</div><div class="mv ${p.totalPct>=.8?'green':p.totalPct>=.7?'amber':'red'}">${pct(p.totalPct)}</div><div class="ms">${conf.depot}: ${fmt(s.imDepot+s.exDepot)} TEUs</div></div>`;
+  });
+  document.getElementById('ytdMetrics').innerHTML = metricRows.join('');
+  document.getElementById('ytdTables').innerHTML = DEPOTS.map(conf=>{
+    const rows=state.results.ytd[conf.key];
+    return `<div class="depot-card"><div class="depot-title"><b>${conf.label}</b><span>${conf.depot} vs ${conf.compare}</span></div><div class="table-scroll"><table><thead><tr><th>Date</th><th>IM(${conf.compare})</th><th>IM(${conf.depot})</th><th>EX(${conf.compare})</th><th>EX(${conf.depot})</th><th>IM%</th><th>EX%</th><th>YTD IM%</th><th>YTD EX%</th><th>Total Allocation%</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.date}</td><td>${fmt(r.imCompare)}</td><td>${fmt(r.imDepot)}</td><td>${fmt(r.exCompare)}</td><td>${fmt(r.exDepot)}</td><td class="${pctClass(r.imPct)}">${pct(r.imPct)}</td><td class="${pctClass(r.exPct)}">${pct(r.exPct)}</td><td class="${pctClass(r.ytdImPct)}">${pct(r.ytdImPct)}</td><td class="${pctClass(r.ytdExPct)}">${pct(r.ytdExPct)}</td><td class="${pctClass(r.totalPct)}">${pct(r.totalPct)}</td></tr>`).join('')}${renderDailyTotalRow(rows,conf)}</tbody></table></div></div>`;
+  }).join('');
+}
+
+function chartData(conf, mode){
+  if(!state.generated) return {labels:[], im:[], ex:[], total:[]};
+  let rows=[];
+  if(mode==='daily') rows = state.results.daily[conf.key].map(r=>({label:r.date.slice(5), imPct:r.imPct, exPct:r.exPct, totalPct:r.totalPct}));
+  if(mode==='month') rows = state.results.month[conf.key].map(r=>({label:r.monthName, imPct:r.imPct, exPct:r.exPct, totalPct:r.totalPct}));
+  if(mode==='week') rows = state.results.week[conf.key].map(r=>({label:'W'+r.week, imPct:r.imPct, exPct:r.exPct, totalPct:r.totalPct}));
+  return {labels:rows.map(r=>r.label), im:rows.map(r=>+(r.imPct*100).toFixed(1)), ex:rows.map(r=>+(r.exPct*100).toFixed(1)), total:rows.map(r=>+(r.totalPct*100).toFixed(1))};
+}
+function totalChartData(mode){
+  if(!state.generated) return {labels:[], im:[], ex:[], total:[]};
+  const year=+document.getElementById('yearInput').value, month=+document.getElementById('monthInput').value, cutoff=getCutoffDate();
+  let keys=[];
+  if(mode==='daily'){
+    const start=monthStart(year,month), end=monthEnd(year,month), finalEnd=compareDates(end,cutoff)>0?cutoff:end;
+    if(compareDates(start,finalEnd)<=0){for(let d=new Date(start); compareDates(d,finalEnd)<=0; d=addDays(d,1)) keys.push({label:dateKey(d).slice(5), keys:[dateKey(d)]});}
+  } else if(mode==='month'){
+    for(let m=1;m<=12;m++){const start=monthStart(year,m), end=monthEnd(year,m), finalEnd=compareDates(end,cutoff)>0?cutoff:end; const ks=[]; if(compareDates(start,finalEnd)<=0){for(let d=new Date(start); compareDates(d,finalEnd)<=0; d=addDays(d,1)) ks.push(dateKey(d));} keys.push({label:MONTH_NAMES[m-1]+'-'+year, keys:ks});}
+  } else {
+    const maxWeek=(year<cutoff.getFullYear())?53:isoWeek(cutoff);
+    for(let w=1;w<=maxWeek;w++){const ks=Object.keys(state.dailyAgg).filter(k=>{const d=parseDate(k);return d&&d.getFullYear()===year&&isoWeek(d)===w&&compareDates(d,cutoff)<=0;}); keys.push({label:'W'+w,keys:ks});}
+  }
+  const rows=keys.map(item=>{
+    const s={imCompare:0,imDepot:0,exCompare:0,exDepot:0};
+    item.keys.forEach(k=>DEPOTS.forEach(conf=>{const a=getGeo(k,conf.depot), b=getGeo(k,conf.compare);s.imDepot+=a.im;s.exDepot+=a.ex;s.imCompare+=b.im;s.exCompare+=b.ex;}));
+    const p=calcPctFromSum(s); return {label:item.label, ...p};
+  });
+  return {labels:rows.map(r=>r.label), im:rows.map(r=>+(r.imPct*100).toFixed(1)), ex:rows.map(r=>+(r.exPct*100).toFixed(1)), total:rows.map(r=>+(r.totalPct*100).toFixed(1))};
+}
+
+const valueLabelPlugin = {
+  id:'valueLabelPlugin',
+  afterDatasetsDraw(chart){
+    const {ctx} = chart;
+    ctx.save();
+    ctx.font = 'bold 10px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+    ctx.fillStyle = '#1A2433';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    chart.data.datasets.forEach((dataset, datasetIndex)=>{
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if(meta.hidden) return;
+      meta.data.forEach((element, index)=>{
+        const raw = dataset.data[index];
+        if(raw === null || raw === undefined || isNaN(raw)) return;
+        const text = Number(raw).toFixed(0) + '%';
+        const pos = element.tooltipPosition ? element.tooltipPosition() : {x:element.x, y:element.y};
+        const y = (dataset.type === 'line') ? pos.y - 8 : pos.y - 4;
+        ctx.fillText(text, pos.x, y);
+      });
+    });
+    ctx.restore();
+  }
+};
+
+function makeChart(canvasId, data, title){
+  const ctx=document.getElementById(canvasId);
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:data.labels,
+      datasets:[
+        {label:'IM%',data:data.im,borderWidth:1},
+        {label:'EX%',data:data.ex,borderWidth:1},
+        {label:'Total Allocation%',data:data.total,type:'line',tension:.25,borderWidth:2,pointRadius:2}
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{padding:{top:22,right:8,left:8}},
+      plugins:{legend:{position:'bottom'},title:{display:false,text:title},tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${ctx.parsed.y}%`}}},
+      scales:{y:{beginAtZero:true,max:110,ticks:{callback:v=>v+'%'}}}
+    },
+    plugins:[valueLabelPlugin]
+  });
+}
+function renderCharts(){
+  if(!document.getElementById('page-chart') || document.getElementById('page-chart').hidden) return;
+  const mode=document.getElementById('chartMode').value;
+  DEPOTS.forEach(conf=>makeChart('chart'+conf.key, chartData(conf,mode), conf.label));
+  makeChart('chartTotal', totalChartData(mode), 'Total SBS Depot Allocation');
+}
+
+function aoaDaily(){
+  const aoa=[]; DEPOTS.forEach(conf=>{aoa.push([conf.label, conf.depot+' vs '+conf.compare]); aoa.push(['Date',`IM(${conf.compare})`,`IM(${conf.depot})`,`EX(${conf.compare})`,`EX(${conf.depot})`,'IM%','EX%','MTD/YTD IM%','MTD/YTD EX%','Total Allocation%']); state.results.daily[conf.key].forEach(r=>aoa.push([r.date,r.imCompare,r.imDepot,r.exCompare,r.exDepot,r.imPct,r.exPct,r.mtdImPct,r.mtdExPct,r.totalPct])); aoa.push([]);}); return aoa;
+}
+function aoaMonth(){
+  const aoa=[]; DEPOTS.forEach(conf=>{aoa.push([conf.label, conf.depot+' vs '+conf.compare]); aoa.push(['Month',`Import ${conf.depot}`,`Import ${conf.compare}`,`Export ${conf.depot}`,`Export ${conf.compare}`,'Throughput Import','Throughput Export','IM%','EX%','Allocation Depot','All Allocation','Total Allocation%']); state.results.month[conf.key].forEach(r=>aoa.push([r.monthName,r.imDepot,r.imCompare,r.exDepot,r.exCompare,r.throughputIm,r.throughputEx,r.imPct,r.exPct,r.allocationDepot,r.allocationAll,r.totalPct])); aoa.push([]);}); return aoa;
+}
+function aoaWeek(){
+  const aoa=[]; DEPOTS.forEach(conf=>{aoa.push([conf.label, conf.depot+' vs '+conf.compare]); aoa.push(['Week',`IM(${conf.compare})`,`IM(${conf.depot})`,`EX(${conf.compare})`,`EX(${conf.depot})`,'IM%','EX%','YTW IM%','YTW EX%','Total Allocation%']); state.results.week[conf.key].forEach(r=>aoa.push([r.week,r.imCompare,r.imDepot,r.exCompare,r.exDepot,r.imPct,r.exPct,r.ytwImPct,r.ytwExPct,r.totalPct])); aoa.push([]);}); return aoa;
+}
+function aoaYtd(){
+  const aoa=[]; DEPOTS.forEach(conf=>{aoa.push([conf.label, conf.depot+' vs '+conf.compare]); aoa.push(['Date',`IM(${conf.compare})`,`IM(${conf.depot})`,`EX(${conf.compare})`,`EX(${conf.depot})`,'IM%','EX%','YTD IM%','YTD EX%','Total Allocation%']); state.results.ytd[conf.key].forEach(r=>aoa.push([r.date,r.imCompare,r.imDepot,r.exCompare,r.exDepot,r.imPct,r.exPct,r.ytdImPct,r.ytdExPct,r.totalPct])); aoa.push([]);}); return aoa;
+}
+function sheetFromAoa(aoa){const ws=XLSX.utils.aoa_to_sheet(aoa); const range=XLSX.utils.decode_range(ws['!ref']||'A1'); for(let R=range.s.r;R<=range.e.r;R++){for(let C=range.s.c;C<=range.e.c;C++){const cell=ws[XLSX.utils.encode_cell({r:R,c:C})]; if(cell && typeof cell.v==='number' && C>=5){ if(cell.v<=1 && cell.v>=0){cell.z='0.0%';}}}} return ws;}
+function downloadExcel(){
+  if(!state.generated){showStatus('Generate allocation first before downloading Excel.','err');return;}
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheetFromAoa(aoaDaily()), 'RES-DAILY');
+  XLSX.utils.book_append_sheet(wb, sheetFromAoa(aoaMonth()), 'RES-MONTH');
+  XLSX.utils.book_append_sheet(wb, sheetFromAoa(aoaWeek()), 'RES-WEEK');
+  XLSX.utils.book_append_sheet(wb, sheetFromAoa(aoaYtd()), 'YTD');
+  XLSX.utils.book_append_sheet(wb, sheetFromAoa(recordsAoa()), 'RECORD');
+  const cutoff = getCutoffDate();
+  XLSX.writeFile(wb, `SBS_Volume_Allocation_${dateKey(cutoff)}.xlsx`);
+}
+
+function latestRecordRows(){
+  if(!state.generated) return [];
+  const cutoff=dateKey(getCutoffDate()); const year=+document.getElementById('yearInput').value; const month=+document.getElementById('monthInput').value;
+  return DEPOTS.map(conf=>{const rows=state.results.ytd[conf.key]; const s=sumRows(rows); const p=calcPctFromSum(s); return {savedAt:new Date().toISOString(), sourceFile:state.fileName, cutoff, year, month, depot:conf.label, depotCode:conf.depot, compareCode:conf.compare, imDepot:s.imDepot, imCompare:s.imCompare, exDepot:s.exDepot, exCompare:s.exCompare, imPct:p.imPct, exPct:p.exPct, totalPct:p.totalPct};});
+}
+function saveCurrentRecord(){
+  if(!state.generated){showStatus('Generate allocation first before saving record.','err'); return;}
+  const rec=latestRecordRows(); state.records = state.records.concat(rec); localStorage.setItem('sbsAllocationRecords', JSON.stringify(state.records)); renderRecords(); showStatus('Record saved locally in this browser.','ok');
+}
+function loadRecords(){try{state.records=JSON.parse(localStorage.getItem('sbsAllocationRecords')||'[]');}catch(e){state.records=[];}}
+function clearRecords(){if(confirm('Clear all local records?')){state.records=[];localStorage.removeItem('sbsAllocationRecords');renderRecords();}}
+function recordsAoa(){return [['Saved At','Source File','Cut-off','Year','Month','Depot','Depot Code','Compare Code','IM Depot','IM Compare','EX Depot','EX Compare','IM%','EX%','Total Allocation%']].concat(state.records.map(r=>[r.savedAt,r.sourceFile,r.cutoff,r.year,r.month,r.depot,r.depotCode,r.compareCode,r.imDepot,r.imCompare,r.exDepot,r.exCompare,r.imPct,r.exPct,r.totalPct]));}
+function renderRecords(){
+  const el=document.getElementById('recordTable'); if(!el) return;
+  if(!state.records.length){el.innerHTML='<div class="blank">No saved records yet.</div>'; return;}
+  el.innerHTML=`<div class="table-scroll"><table><thead><tr><th>Saved At</th><th>Cut-off</th><th>Depot</th><th>Depot Code</th><th>IM Depot</th><th>EX Depot</th><th>IM%</th><th>EX%</th><th>Total Allocation%</th></tr></thead><tbody>${state.records.slice().reverse().map(r=>`<tr><td>${new Date(r.savedAt).toLocaleString('en-GB')}</td><td>${r.cutoff}</td><td>${r.depot}</td><td>${r.depotCode}</td><td>${fmt(r.imDepot)}</td><td>${fmt(r.exDepot)}</td><td class="${pctClass(r.imPct)}">${pct(r.imPct)}</td><td class="${pctClass(r.exPct)}">${pct(r.exPct)}</td><td class="${pctClass(r.totalPct)}">${pct(r.totalPct)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function exportRecords(){
+  if(!state.records.length){showStatus('No local records to export.','err');return;}
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, sheetFromAoa(recordsAoa()), 'RECORD'); XLSX.writeFile(wb, 'SBS_Allocation_Records.xlsx');
+}
+function openSheet(){const url=document.getElementById('sheetLink').value.trim(); if(url) window.open(url,'_blank');}
+function copyLatestCsv(){
+  const rows=latestRecordRows(); if(!rows.length){showStatus('Generate allocation first before copying CSV.','err');return;}
+  const header=['Saved At','Source File','Cut-off','Year','Month','Depot','Depot Code','Compare Code','IM Depot','IM Compare','EX Depot','EX Compare','IM%','EX%','Total Allocation%'];
+  const csv=[header.join('\t')].concat(rows.map(r=>[r.savedAt,r.sourceFile,r.cutoff,r.year,r.month,r.depot,r.depotCode,r.compareCode,r.imDepot,r.imCompare,r.exDepot,r.exCompare,pct(r.imPct),pct(r.exPct),pct(r.totalPct)].join('\t'))).join('\n');
+  navigator.clipboard.writeText(csv).then(()=>showStatus('Latest record copied. Paste it into Google Sheets.','ok')).catch(()=>showStatus('Clipboard blocked. Use Download Excel instead.','err'));
+}
+
+function getAppsScriptUrl(){
+  const input=document.getElementById('appsScriptUrl');
+  const url=(input && input.value ? input.value.trim() : ((typeof APPS_SCRIPT_WEB_APP_URL !== 'undefined' ? APPS_SCRIPT_WEB_APP_URL : '') || '').trim());
+  if(url) localStorage.setItem('sbsAllocationAppsScriptUrl', url);
+  return url;
+}
+function setSyncStatus(msg, cls=''){
+  const el=document.getElementById('syncStatus');
+  if(el){el.textContent=msg; el.className='file-status '+cls;}
+}
+function maybeAutoSync(trigger){
+  const toggle=document.getElementById('autoSyncToggle');
+  if(trigger==='upload' && toggle && toggle.checked && getAppsScriptUrl()) syncToSpreadsheet(true);
+}
+function callAppsScriptJsonp(params={}){
+  const base=getAppsScriptUrl();
+  return new Promise((resolve,reject)=>{
+    if(!base){reject(new Error('Apps Script /exec URL is empty.')); return;}
+    const callback='sbsAllocCb_'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const query=new URLSearchParams({...params, callback});
+    const script=document.createElement('script');
+    const timeout=setTimeout(()=>{cleanup(); reject(new Error('Connection timeout. Check the Apps Script deployment access.'));}, 20000);
+    function cleanup(){clearTimeout(timeout); delete window[callback]; if(script.parentNode) script.parentNode.removeChild(script);}
+    window[callback]=(data)=>{cleanup(); resolve(data);};
+    script.onerror=()=>{cleanup(); reject(new Error('Could not load Apps Script response. Check the /exec URL.'));};
+    script.src=base+(base.includes('?')?'&':'?')+query.toString();
+    document.body.appendChild(script);
+  });
+}
+function aoaRawFiltered(){
+  return [['Date','Geo Level Name','Equipment Type','Import','Export','Year','Month','ISO Week']].concat(
+    state.rawRows.map(r=>[dateKey(r.date), r.geo, r.equipment, r.im, r.ex, r.year, r.month, r.week])
+  );
+}
+function aoaSummary(){
+  const cutoff=dateKey(getCutoffDate());
+  const year=+document.getElementById('yearInput').value;
+  const month=+document.getElementById('monthInput').value;
+  const total=state.results.totals.ytd || {};
+  const mtd=state.results.totals.selectedMonth || {};
+  const rows=[
+    ['Metric','Value','Notes'],
+    ['Source File',state.fileName || '-','Latest uploaded Rock data'],
+    ['Value Unit',state.valueUnit || '-','Expected TEU / Teus'],
+    ['Upload Date',dateKey(getUploadDate()),'User selected upload date'],
+    ['Cut-off Date',cutoff,'H-1 rule'],
+    ['Selected Period',MONTH_NAMES[month-1]+' '+year,'Dashboard period'],
+    ['MTD IM%',mtd.imPct || 0,'Total IDJKTSS + IDSUBSS + IDSEMSS'],
+    ['MTD EX%',mtd.exPct || 0,'Total IDJKTSS + IDSUBSS + IDSEMSS'],
+    ['MTD Total Allocation%',mtd.totalPct || 0,'Total allocation selected month'],
+    ['YTD IM%',total.imPct || 0,'Total IDJKTSS + IDSUBSS + IDSEMSS'],
+    ['YTD EX%',total.exPct || 0,'Total IDJKTSS + IDSUBSS + IDSEMSS'],
+    ['YTD Total Allocation%',total.totalPct || 0,'Total allocation YTD']
+  ];
+  DEPOTS.forEach(conf=>{
+    const s=sumRows(state.results.ytd[conf.key]||[]); const p=calcPctFromSum(s);
+    rows.push([conf.label+' YTD IM Depot',s.imDepot,conf.depot]);
+    rows.push([conf.label+' YTD EX Depot',s.exDepot,conf.depot]);
+    rows.push([conf.label+' YTD Total Allocation%',p.totalPct,conf.depot+' vs '+conf.compare]);
+  });
+  return rows;
+}
+function latestRecordAoa(){
+  const header=['Saved At','Source File','Cut-off','Year','Month','Depot','Depot Code','Compare Code','IM Depot','IM Compare','EX Depot','EX Compare','IM%','EX%','Total Allocation%'];
+  return [header].concat(latestRecordRows().map(r=>[r.savedAt,r.sourceFile,r.cutoff,r.year,r.month,r.depot,r.depotCode,r.compareCode,r.imDepot,r.imCompare,r.exDepot,r.exCompare,r.imPct,r.exPct,r.totalPct]));
+}
+function buildSpreadsheetPayload(){
+  return {
+    meta:{
+      sourceFile:state.fileName || '',
+      valueUnit:state.valueUnit || '',
+      uploadDate:dateKey(getUploadDate()),
+      cutoffDate:dateKey(getCutoffDate()),
+      generatedAt:new Date().toISOString(),
+      year:+document.getElementById('yearInput').value,
+      month:+document.getElementById('monthInput').value
+    },
+    sheets:[
+      {name:'UPLOAD_INFO', values:aoaSummary()},
+      {name:'ROCK_FILTERED', values:aoaRawFiltered()},
+      {name:'RES_DAILY', values:aoaDaily()},
+      {name:'RES_MONTH', values:aoaMonth()},
+      {name:'RES_WEEK', values:aoaWeek()},
+      {name:'YTD', values:aoaYtd()},
+      {name:'RECORD_LATEST', values:latestRecordAoa()}
+    ]
+  };
+}
+async function syncToSpreadsheet(silent=false){
+  if(!state.generated){showStatus('Generate allocation first before syncing spreadsheet.','err'); setSyncStatus('Generate allocation first.','err'); return;}
+  const url=getAppsScriptUrl();
+  if(!url){
+    const msg='Paste Apps Script Web App URL yang berakhiran /exec terlebih dahulu.';
+    showStatus(msg,'warn'); setSyncStatus(msg,'warn'); return;
+  }
+  setSyncStatus('Sending latest Rock data to Apps Script ...');
+  if(!silent) showStatus('Sending latest Rock data to spreadsheet ...','warn');
+  try{
+    // GitHub Pages cannot use google.script.run. This POST uses no-cors so Apps Script can receive the data.
+    // Browser will not expose the response, so use Check Connection / spreadsheet view to verify.
+    await fetch(url, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(buildSpreadsheetPayload())
+    });
+    const msg='Data sent. Spreadsheet will be replaced with latest Rock upload. Open Spreadsheet to verify.';
+    setSyncStatus(msg,'ok'); showStatus(msg,'ok');
+  }catch(err){
+    const msg='Spreadsheet sync failed to send: '+(err && err.message ? err.message : err);
+    setSyncStatus(msg,'err'); showStatus(msg,'err');
+  }
+}
+async function checkSpreadsheet(){
+  setSyncStatus('Checking spreadsheet connection ...');
+  try{
+    const res=await callAppsScriptJsonp({action:'info'});
+    if(res && res.ok!==false){
+      setSyncStatus(`Connected to: ${res.name || 'Spreadsheet'}. Last check: ${res.checkedAt || '-'}`,'ok');
+    }else{
+      throw new Error((res && res.error) || 'Unknown response from Apps Script.');
+    }
+  }catch(err){
+    setSyncStatus('Connection failed: '+(err && err.message ? err.message : err),'err');
+  }
+}
+
+
+init();
+</script>
+</body>
+</html>
