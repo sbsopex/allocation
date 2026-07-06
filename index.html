@@ -68,6 +68,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
   <button class="btn-opt" onclick="runAllocation()">📈 Generate Allocation</button>
   <button class="btn-opt gold" onclick="setPeriodToCutoffMonth()">🗓️ Use Cut-off Month</button>
   <button class="btn-opt green" onclick="saveCurrentRecord()">💾 Save Record</button>
+  <button class="btn-opt" onclick="loadLatestFromSpreadsheet(false)">🔄 Load Latest</button>
   <button class="btn-opt green" onclick="syncToSpreadsheet()">☁ Replace Spreadsheet</button>
   <button class="btn-opt red" onclick="downloadExcel()">⬇ Download Excel</button>
   <span class="opt-status" id="mainStatus">Ready. Upload Rock data to generate allocation.</span>
@@ -152,12 +153,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     <div class="igroup stock"><div class="igroup-head"><span class="dot"></span>Google Sheets link</div>
       <input class="sheet-link" id="sheetLink" value="https://docs.google.com/spreadsheets/d/1WAu1KhMNJSSsXPjTdnwiBPXDc-Qc5RAlrJWjlgsfx2A/edit?usp=sharing">
       <label class="hint" style="display:block;margin-top:8px;"><b>Apps Script Web App URL</b> — paste URL yang berakhiran <b>/exec</b> untuk mode GitHub Pages.</label>
-      <input class="sheet-link" id="appsScriptUrl" placeholder="https://script.google.com/macros/s/AKfycbzP0Gjxfoe9Ioga4DTV6Yxb4g9LLnyee3RMP6VoJJleKA98adlRvRi2swN9S_nmzOqpeQ/exec">
+      <input class="sheet-link" id="appsScriptUrl" value="https://script.google.com/macros/s/AKfycbzP0Gjxfoe9Ioga4DTV6Yxb4g9LLnyee3RMP6VoJJleKA98adlRvRi2swN9S_nmzOqpeQ/exec" placeholder="https://script.google.com/macros/s/AKfycbzP0Gjxfoe9Ioga4DTV6Yxb4g9LLnyee3RMP6VoJJleKA98adlRvRi2swN9S_nmzOqpeQ/exec">
       <div class="toolbar"><button class="btn" onclick="openSheet()">Open Spreadsheet</button><button class="btn ghost" onclick="copyLatestCsv()">Copy latest CSV</button></div>
-      <div class="toolbar"><button class="btn green" onclick="syncToSpreadsheet()">☁ Replace Spreadsheet Data</button><button class="btn ghost" onclick="checkSpreadsheet()">Check Connection</button></div>
+      <div class="toolbar"><button class="btn green" onclick="syncToSpreadsheet()">☁ Replace Spreadsheet Data</button><button class="btn" onclick="loadLatestFromSpreadsheet(false)">🔄 Load Latest Data</button><button class="btn ghost" onclick="checkSpreadsheet()">Check Connection</button></div>
       <label class="hint" style="display:flex;align-items:center;gap:7px;margin-top:10px;"><input type="checkbox" id="autoSyncToggle" checked> Auto replace spreadsheet after Rock file upload</label>
       <div class="file-status" id="syncStatus">GitHub Pages mode: paste Apps Script /exec URL, then click Check Connection.</div>
-      <div class="hint">Online mode will <b>clear the previous spreadsheet data</b> and replace it with the latest Rock upload results: ROCK_FILTERED, UPLOAD_INFO, RES_DAILY, RES_MONTH, RES_WEEK, and YTD.</div>
+      <div class="hint">Online mode will <b>clear the previous spreadsheet data</b> and replace it with the latest Rock upload results. Other devices will auto-load the latest dashboard snapshot from Spreadsheet when opening this GitHub link.</div>
     </div>
   </div>
 </section>
@@ -243,13 +244,15 @@ function init(){
   document.getElementById('yearInput').addEventListener('change', ()=>{if(state.rawRows.length) runAllocation();});
   document.getElementById('monthInput').addEventListener('change', ()=>{if(state.rawRows.length) runAllocation();});
   document.getElementById('uploadRock').addEventListener('change', handleRockUpload);
-  const savedApiUrl = localStorage.getItem('sbsAllocationAppsScriptUrl') || (typeof APPS_SCRIPT_WEB_APP_URL !== 'undefined' ? APPS_SCRIPT_WEB_APP_URL : '') || '';
+  const savedApiUrl = (typeof APPS_SCRIPT_WEB_APP_URL !== 'undefined' ? APPS_SCRIPT_WEB_APP_URL : '') || localStorage.getItem('sbsAllocationAppsScriptUrl') || '';
   const apiInput = document.getElementById('appsScriptUrl');
   if(apiInput){
     apiInput.value = savedApiUrl;
     apiInput.addEventListener('change', ()=>localStorage.setItem('sbsAllocationAppsScriptUrl', apiInput.value.trim()));
   }
   updateCutoffText(); loadRecords(); renderEmpty();
+  setTimeout(()=>loadLatestFromSpreadsheet(true), 800);
+  window.sbsAllocationRefreshTimer = setInterval(()=>loadLatestFromSpreadsheet(true), 300000);
 }
 function updateCutoffText(){document.getElementById('cutoffText').value = niceDate(getCutoffDate());}
 function setPeriodToCutoffMonth(run=true){
@@ -710,6 +713,74 @@ function latestRecordAoa(){
   const header=['Saved At','Source File','Cut-off','Year','Month','Depot','Depot Code','Compare Code','IM Depot','IM Compare','EX Depot','EX Compare','IM%','EX%','Total Allocation%'];
   return [header].concat(latestRecordRows().map(r=>[r.savedAt,r.sourceFile,r.cutoff,r.year,r.month,r.depot,r.depotCode,r.compareCode,r.imDepot,r.imCompare,r.exDepot,r.exCompare,r.imPct,r.exPct,r.totalPct]));
 }
+function buildDashboardSnapshot(){
+  return {
+    version:'github-auto-load-v2',
+    meta:{
+      sourceFile:state.fileName || '',
+      valueUnit:state.valueUnit || '',
+      uploadDate:dateKey(getUploadDate()),
+      cutoffDate:dateKey(getCutoffDate()),
+      generatedAt:new Date().toISOString(),
+      year:+document.getElementById('yearInput').value,
+      month:+document.getElementById('monthInput').value
+    },
+    dailyAgg:state.dailyAgg || {},
+    results:state.results || {daily:{}, month:{}, week:{}, ytd:{}, totals:{}},
+    records:latestRecordRows()
+  };
+}
+function dashboardJsonAoa(){
+  const json = JSON.stringify(buildDashboardSnapshot());
+  const chunkSize = 40000;
+  const rows = [['Part','JSON Chunk']];
+  for(let i=0;i<json.length;i+=chunkSize){
+    rows.push([Math.floor(i/chunkSize)+1, json.slice(i, i+chunkSize)]);
+  }
+  return rows;
+}
+function applyDashboardSnapshot(snapshot, silent=false){
+  if(!snapshot || !snapshot.results){throw new Error('Latest snapshot is empty or invalid.');}
+  const meta=snapshot.meta || {};
+  state.fileName = meta.sourceFile || 'Spreadsheet latest data';
+  state.valueUnit = meta.valueUnit || 'TEU';
+  state.dailyAgg = snapshot.dailyAgg || {};
+  state.results = snapshot.results || {daily:{}, month:{}, week:{}, ytd:{}, totals:{}};
+  state.rawRows = [];
+  state.generated = true;
+  if(Array.isArray(snapshot.records)) state.records = snapshot.records;
+  if(meta.uploadDate) document.getElementById('uploadDate').value = meta.uploadDate;
+  if(meta.year) document.getElementById('yearInput').value = meta.year;
+  if(meta.month) document.getElementById('monthInput').value = meta.month;
+  updateCutoffText();
+  renderAll(+document.getElementById('yearInput').value, +document.getElementById('monthInput').value, getCutoffDate());
+  const msg = `Latest Spreadsheet data loaded${meta.cutoffDate ? ' until '+meta.cutoffDate : ''}${meta.sourceFile ? ' from '+meta.sourceFile : ''}.`;
+  setSyncStatus(msg,'ok');
+  if(!silent) showStatus(msg,'ok');
+}
+async function loadLatestFromSpreadsheet(silent=false){
+  const url=getAppsScriptUrl();
+  if(!url){
+    if(!silent){const msg='Paste Apps Script Web App URL yang berakhiran /exec terlebih dahulu.'; showStatus(msg,'warn'); setSyncStatus(msg,'warn');}
+    return;
+  }
+  if(!silent) { setSyncStatus('Loading latest dashboard data from Spreadsheet ...'); showStatus('Loading latest data from Spreadsheet ...','warn'); }
+  try{
+    const res=await callAppsScriptJsonp({action:'latest', t:Date.now()});
+    if(!res || res.ok===false) throw new Error((res && res.error) || 'No response from Apps Script.');
+    if(!res.hasData) {
+      const msg='Spreadsheet connected, but no DASHBOARD_JSON snapshot yet. Upload Rock once and click Replace Spreadsheet.';
+      setSyncStatus(msg,'warn');
+      if(!silent) showStatus(msg,'warn');
+      return;
+    }
+    applyDashboardSnapshot(res.snapshot, silent);
+  }catch(err){
+    const msg='Failed to load latest Spreadsheet data: '+(err && err.message ? err.message : err);
+    setSyncStatus(msg,'err');
+    if(!silent) showStatus(msg,'err');
+  }
+}
 function buildSpreadsheetPayload(){
   return {
     meta:{
@@ -728,7 +799,8 @@ function buildSpreadsheetPayload(){
       {name:'RES_MONTH', values:aoaMonth()},
       {name:'RES_WEEK', values:aoaWeek()},
       {name:'YTD', values:aoaYtd()},
-      {name:'RECORD_LATEST', values:latestRecordAoa()}
+      {name:'RECORD_LATEST', values:latestRecordAoa()},
+      {name:'DASHBOARD_JSON', values:dashboardJsonAoa()}
     ]
   };
 }
