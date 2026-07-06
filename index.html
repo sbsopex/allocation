@@ -151,6 +151,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
     </div>
     <div class="igroup stock"><div class="igroup-head"><span class="dot"></span>Google Sheets link</div>
       <input class="sheet-link" id="sheetLink" value="https://docs.google.com/spreadsheets/d/1WAu1KhMNJSSsXPjTdnwiBPXDc-Qc5RAlrJWjlgsfx2A/edit?usp=sharing">
+      <label class="hint" style="display:block;margin-top:8px;"><b>Apps Script Web App URL</b> — paste URL yang berakhiran <b>/exec</b> untuk mode GitHub Pages.</label>
       <input class="sheet-link" id="appsScriptUrl" placeholder="https://script.google.com/macros/s/AKfycbzP0Gjxfoe9Ioga4DTV6Yxb4g9LLnyee3RMP6VoJJleKA98adlRvRi2swN9S_nmzOqpeQ/exec">
       <div class="toolbar"><button class="btn" onclick="openSheet()">Open Spreadsheet</button><button class="btn ghost" onclick="copyLatestCsv()">Copy latest CSV</button></div>
       <div class="toolbar"><button class="btn green" onclick="syncToSpreadsheet()">☁ Replace Spreadsheet Data</button><button class="btn ghost" onclick="checkSpreadsheet()">Check Connection</button></div>
@@ -168,6 +169,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 </div>
 <script>
+// Paste your Apps Script Web App URL here if you want it pre-filled.
+// Example: const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxxxxxxx/exec';
+const APPS_SCRIPT_WEB_APP_URL = '';
+
 const DEPOTS = [
   {key:'JKT', label:'Jakarta', depot:'IDJKTSS', compare:'IDJKTIT'},
   {key:'SUB', label:'Surabaya', depot:'IDSUBSS', compare:'IDSUBP1'},
@@ -238,7 +243,7 @@ function init(){
   document.getElementById('yearInput').addEventListener('change', ()=>{if(state.rawRows.length) runAllocation();});
   document.getElementById('monthInput').addEventListener('change', ()=>{if(state.rawRows.length) runAllocation();});
   document.getElementById('uploadRock').addEventListener('change', handleRockUpload);
-  const savedApiUrl = localStorage.getItem('sbsAllocationAppsScriptUrl') || APPS_SCRIPT_WEB_APP_URL || '';
+  const savedApiUrl = localStorage.getItem('sbsAllocationAppsScriptUrl') || (typeof APPS_SCRIPT_WEB_APP_URL !== 'undefined' ? APPS_SCRIPT_WEB_APP_URL : '') || '';
   const apiInput = document.getElementById('appsScriptUrl');
   if(apiInput){
     apiInput.value = savedApiUrl;
@@ -641,7 +646,7 @@ function copyLatestCsv(){
 
 function getAppsScriptUrl(){
   const input=document.getElementById('appsScriptUrl');
-  const url=(input && input.value ? input.value.trim() : (APPS_SCRIPT_WEB_APP_URL || '').trim());
+  const url=(input && input.value ? input.value.trim() : ((typeof APPS_SCRIPT_WEB_APP_URL !== 'undefined' ? APPS_SCRIPT_WEB_APP_URL : '') || '').trim());
   if(url) localStorage.setItem('sbsAllocationAppsScriptUrl', url);
   return url;
 }
