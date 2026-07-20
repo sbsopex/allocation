@@ -713,10 +713,11 @@ function latestRecordAoa(){
   const header=['Saved At','Source File','Cut-off','Year','Month','Depot','Depot Code','Compare Code','IM Depot','IM Compare','EX Depot','EX Compare','IM%','EX%','Total Allocation%'];
   return [header].concat(latestRecordRows().map(r=>[r.savedAt,r.sourceFile,r.cutoff,r.year,r.month,r.depot,r.depotCode,r.compareCode,r.imDepot,r.imCompare,r.exDepot,r.exCompare,r.imPct,r.exPct,r.totalPct]));
 }
-function buildDashboardSnapshot(){
+function buildDashboardSnapshot(syncId=''){
   return {
-    version:'github-auto-load-v2',
+    version:'github-auto-load-v3',
     meta:{
+      syncId:syncId || '',
       sourceFile:state.fileName || '',
       valueUnit:state.valueUnit || '',
       uploadDate:dateKey(getUploadDate()),
@@ -730,8 +731,8 @@ function buildDashboardSnapshot(){
     records:latestRecordRows()
   };
 }
-function dashboardJsonAoa(){
-  const json = JSON.stringify(buildDashboardSnapshot());
+function dashboardJsonAoa(syncId=''){
+  const json = JSON.stringify(buildDashboardSnapshot(syncId));
   const chunkSize = 40000;
   const rows = [['Part','JSON Chunk']];
   for(let i=0;i<json.length;i+=chunkSize){
@@ -781,9 +782,11 @@ async function loadLatestFromSpreadsheet(silent=false){
     if(!silent) showStatus(msg,'err');
   }
 }
-function buildSpreadsheetPayload(){
+function buildSpreadsheetPayload(syncId=''){
   return {
+    syncId:syncId || '',
     meta:{
+      syncId:syncId || '',
       sourceFile:state.fileName || '',
       valueUnit:state.valueUnit || '',
       uploadDate:dateKey(getUploadDate()),
@@ -800,9 +803,35 @@ function buildSpreadsheetPayload(){
       {name:'RES_WEEK', values:aoaWeek()},
       {name:'YTD', values:aoaYtd()},
       {name:'RECORD_LATEST', values:latestRecordAoa()},
-      {name:'DASHBOARD_JSON', values:dashboardJsonAoa()}
+      {name:'DASHBOARD_JSON', values:dashboardJsonAoa(syncId)}
     ]
   };
+}
+function makeSyncId(){
+  if(window.crypto && typeof window.crypto.randomUUID==='function') return window.crypto.randomUUID();
+  return 'sync_'+Date.now()+'_'+Math.floor(Math.random()*1000000);
+}
+function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function waitForSyncConfirmation(syncId){
+  let last=null;
+  for(let attempt=0; attempt<20; attempt++){
+    await sleep(attempt===0 ? 700 : 1500);
+    try{
+      const res=await callAppsScriptJsonp({action:'status', syncId:syncId, t:Date.now()});
+      last=res;
+      if(!res || String(res.syncId||'')!==String(syncId)) continue;
+      if(res.state==='processing'){
+        setSyncStatus('Apps Script received the data and is writing the spreadsheet ...','warn');
+        continue;
+      }
+      if(res.state==='success') return res;
+      if(res.state==='partial') return res;
+      if(res.state==='error' || res.ok===false) throw new Error(res.error || 'Apps Script failed while writing the spreadsheet.');
+    }catch(err){
+      if(attempt>=19) throw err;
+    }
+  }
+  throw new Error((last && last.error) || 'Apps Script did not confirm the save. Open Apps Script > Executions to see the exact error.');
 }
 async function syncToSpreadsheet(silent=false){
   if(!state.generated){showStatus('Generate allocation first before syncing spreadsheet.','err'); setSyncStatus('Generate allocation first.','err'); return;}
@@ -811,21 +840,30 @@ async function syncToSpreadsheet(silent=false){
     const msg='Paste Apps Script Web App URL yang berakhiran /exec terlebih dahulu.';
     showStatus(msg,'warn'); setSyncStatus(msg,'warn'); return;
   }
+  const syncId=makeSyncId();
+  const payload=buildSpreadsheetPayload(syncId);
   setSyncStatus('Sending latest Rock data to Apps Script ...');
   if(!silent) showStatus('Sending latest Rock data to spreadsheet ...','warn');
   try{
-    // GitHub Pages cannot use google.script.run. This POST uses no-cors so Apps Script can receive the data.
-    // Browser will not expose the response, so use Check Connection / spreadsheet view to verify.
+    // no-cors is required for a static GitHub Pages client. Because its response is opaque,
+    // the dashboard polls action=status through JSONP and only shows success after Apps Script confirms it.
     await fetch(url, {
       method:'POST',
       mode:'no-cors',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify(buildSpreadsheetPayload())
+      body:JSON.stringify(payload)
     });
-    const msg='Data sent. Spreadsheet will be replaced with latest Rock upload. Open Spreadsheet to verify.';
+    const confirmation=await waitForSyncConfirmation(syncId);
+    if(confirmation.state==='partial'){
+      const failed=(confirmation.errors||[]).map(x=>x.sheet+': '+x.error).join(' | ');
+      const msg='Dashboard snapshot saved, but some detail sheets failed'+(failed ? ': '+failed : '.');
+      setSyncStatus(msg,'warn'); showStatus(msg,'warn');
+      return;
+    }
+    const msg='Spreadsheet successfully replaced and confirmed by Apps Script.';
     setSyncStatus(msg,'ok'); showStatus(msg,'ok');
   }catch(err){
-    const msg='Spreadsheet sync failed to send: '+(err && err.message ? err.message : err);
+    const msg='Spreadsheet sync failed: '+(err && err.message ? err.message : err);
     setSyncStatus(msg,'err'); showStatus(msg,'err');
   }
 }
